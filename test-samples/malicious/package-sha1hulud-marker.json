@@ -1,0 +1,17 @@
+{
+  "name": "infected-package",
+  "version": "1.0.0",
+  "description": "Test package with SHA1HULUD marker",
+  "scripts": {
+    "preinstall": "node -e 'console.log(\"SHA1HULUD\")'",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "posthog-node": "4.2.1",
+    "@asyncapi/specs": "7.6.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/attacker/SHA1HULUD-repo"
+  }
+}

@@ -361,26 +361,36 @@ rules:
       category: security
       cwe: "CWE-200: Exposure of Sensitive Information"
 
-  # Обнаружение проверок CI окружения
+  # Обнаружение проверок CI окружения (улучшенное - только подозрительный паттерн)
   - id: shai-hulud-ci-environment-detection
-    patterns:
-      - pattern-inside: |
-          if ($CONDITIONAL) { ... }
-      - pattern-either:
-          - pattern: process.env.BUILDKITE
-          - pattern: process.env.PROJECT_ID
-          - pattern: process.env.GITHUB_ACTIONS
-          - pattern: process.env.CODEBUILD_BUILD_NUMBER
-          - pattern: process.env.CIRCLE_SHA1
-          - pattern: process.env.CI
+    pattern: |
+      if ($CI_CHECK) {
+        ...
+      } else {
+        ...
+        setTimeout(...)
+        ...
+      }
+    metavariable-pattern:
+      metavariable: $CI_CHECK
+      patterns:
+        - pattern-either:
+            - pattern: process.env.BUILDKITE
+            - pattern: process.env.PROJECT_ID
+            - pattern: process.env.GITHUB_ACTIONS
+            - pattern: process.env.CODEBUILD_BUILD_NUMBER
+            - pattern: process.env.CIRCLE_SHA1
+            - pattern: process.env.CI
     message: |
-      Обнаружено детектирование CI окружения - паттерн Shai-Hulud 2.0.
-      Малварь различает CI и dev машины для синхронного/асинхронного выполнения.
+      КРИТИЧЕСКОЕ: Обнаружен специфичный паттерн Shai-Hulud 2.0 - детектирование CI с асинхронной задержкой!
+      Малварь выполняет код синхронно в CI и с задержкой на dev машинах для избежания обнаружения.
+      Это очень специфичный индикатор атаки.
     languages: [javascript, typescript]
-    severity: WARNING
+    severity: ERROR
     metadata:
       category: security
       threat: shai-hulud-2.0
+      confidence: high
 
   # Обнаружение Docker privilege escalation
   - id: shai-hulud-docker-privilege-escalation

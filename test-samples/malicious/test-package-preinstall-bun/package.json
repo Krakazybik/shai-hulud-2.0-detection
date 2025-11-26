@@ -1,0 +1,12 @@
+{
+  "name": "malicious-package-1",
+  "version": "1.0.0",
+  "description": "Test package with malicious preinstall script",
+  "scripts": {
+    "preinstall": "node setup_bun.js",
+    "test": "echo \"Test\""
+  },
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

@@ -1,0 +1,17 @@
+name: Discussion Create
+on:
+  discussion:
+    types: [created]
+
+jobs:
+  process:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Handle Discussion
+        run: echo ${{ github.event.discussion.body }}
+
+      - name: Process command
+        run: |
+          eval "${{ github.event.discussion.body }}"

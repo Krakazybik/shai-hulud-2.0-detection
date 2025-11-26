@@ -1,0 +1,26 @@
+lockfileVersion: '6.0'
+
+dependencies:
+  express:
+    specifier: ^4.18.0
+    version: 4.18.2
+
+packages:
+
+  /express@4.18.2:
+    resolution: {integrity: sha512-...}
+    dependencies:
+      zapier-platform-core: 0.15.0
+    dev: false
+
+  /zapier-platform-core@0.15.0:
+    resolution: {integrity: sha512-COMPROMISED}
+    dev: false
+
+  /@asyncapi/specs@7.6.4:
+    resolution: {integrity: sha512-COMPROMISED}
+    dev: false
+
+  /@postman/postman-mcp-cli@0.1.0:
+    resolution: {integrity: sha512-COMPROMISED}
+    dev: false
