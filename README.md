@@ -255,9 +255,13 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: Clone Shai-Hulud Scanner
+        run: |
+          git clone https://github.com/Krakazybik/shai-hulud-2.0-detection.git /tmp/scanner
+      
       - name: Run Shai-Hulud Scanner
         run: |
-          python3 shai_hulud_scanner.py . \
+          python3 /tmp/scanner/shai_hulud_scanner.py . \
             --update-iocs \
             --json-report scan-report.json
       
@@ -274,10 +278,120 @@ jobs:
       
       - name: Run Semgrep scan
         run: |
-          semgrep --config shai-hulud-2.0-detection.yaml \
+          semgrep --config /tmp/scanner/shai-hulud-2.0-detection.yaml \
                   --severity ERROR \
                   --error \
                   .
+```
+
+### GitLab CI
+
+```yaml
+shai-hulud-scan:
+  image: python:3.11
+  script:
+    # Клонирование сканера
+    - git clone https://github.com/Krakazybik/shai-hulud-2.0-detection.git /tmp/scanner
+    
+    # Сканирование Python сканером
+    - python3 /tmp/scanner/shai_hulud_scanner.py . --update-iocs --json-report report.json
+    
+    # Опционально: Semgrep
+    - pip install semgrep
+    - semgrep --config /tmp/scanner/shai-hulud-2.0-detection.yaml --error .
+  artifacts:
+    reports:
+      sast: report.json
+    paths:
+      - report.json
+    when: always
+  only:
+    - merge_requests
+    - main
+
+# Быстрое сканирование для feature веток
+quick-scan:
+  image: python:3.11
+  script:
+    - git clone https://github.com/Krakazybik/shai-hulud-2.0-detection.git /tmp/scanner
+    - python3 /tmp/scanner/shai_hulud_scanner.py . --quick
+  only:
+    - branches
+  except:
+    - main
+```
+
+### Jenkins Pipeline
+
+```groovy
+pipeline {
+    agent any
+    
+    stages {
+        stage('Clone Scanner') {
+            steps {
+                sh 'git clone https://github.com/Krakazybik/shai-hulud-2.0-detection.git /tmp/scanner'
+            }
+        }
+        
+        stage('Shai-Hulud Scan') {
+            steps {
+                sh '''
+                    python3 /tmp/scanner/shai_hulud_scanner.py . \
+                        --update-iocs \
+                        --json-report scan-report.json
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'scan-report.json', allowEmptyArchive: true
+        }
+        cleanup {
+            sh 'rm -rf /tmp/scanner'
+        }
+    }
+}
+```
+
+### CircleCI
+
+```yaml
+version: 2.1
+
+jobs:
+  shai-hulud-scan:
+    docker:
+      - image: python:3.11
+    steps:
+      - checkout
+      
+      - run:
+          name: Clone Scanner
+          command: git clone https://github.com/Krakazybik/shai-hulud-2.0-detection.git /tmp/scanner
+      
+      - run:
+          name: Run Shai-Hulud Scanner
+          command: |
+            python3 /tmp/scanner/shai_hulud_scanner.py . \
+              --update-iocs \
+              --json-report scan-report.json
+      
+      - store_artifacts:
+          path: scan-report.json
+          destination: shai-hulud-report
+
+workflows:
+  version: 2
+  security-scan:
+    jobs:
+      - shai-hulud-scan
+```
+
+---
+
 ## 🧪 Тестирование
 
 Репозиторий включает набор тестовых примеров для проверки работы сканера:
@@ -330,70 +444,9 @@ test-samples/
 - [Datadog Supply Chain Security](https://www.datadoghq.com/product/software-delivery/supply-chain-security/)
 - [GitHub Dependabot](https://docs.github.com/en/code-security/dependabot)
 - [Snyk](https://snyk.io/)
-    reports:
-      sast: report.json
-    paths:
-      - report.json
-    when: always
-  only:
-    - merge_requests
-    - main
 
-# Быстрое сканирование для feature веток
-quick-scan:
-  image: python:3.11
-  script:
-    - python3 shai_hulud_scanner.py . --quick
-  only:
-    - branches
-  except:
-    - main
-```
+---
 
-### Jenkins Pipeline
-
-```groovy
-pipeline {
-    agent any
-    
-    stages {
-        stage('Shai-Hulud Scan') {
-            steps {
-                sh '''
-                    python3 shai_hulud_scanner.py . \
-                        --update-iocs \
-                        --json-report scan-report.json
-                '''
-            }
-        }
-    }
-    
-    post {
-        always {
-            archiveArtifacts artifacts: 'scan-report.json', allowEmptyArchive: true
-        }
-    }
-}
-```**Ротация credentials**
-   ```bash
-   # GitHub tokens
-   # Перейдите: Settings → Developer settings → Personal access tokens → Revoke all
-   
-   # NPM tokens
-   npm token revoke --all
-   
-   # AWS credentials
-   aws iam delete-access-key --access-key-id <KEY_ID>
-   
-   # GCP credentials
-   gcloud auth revoke --all
-   ```
-
-3. **Проверьте GitHub на созданные репозитории**
-   ```bash
-   # Поиск в GitHub
-   # https://github.com/search?q=Sha1-Hulud%3A+The+Second+Coming&type=repositories
-   ```
 ## 🤝 Участие в проекте
 
 Сообщения об ошибках, предложения улучшений и pull requests приветствуются!
