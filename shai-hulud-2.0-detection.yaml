@@ -1,0 +1,562 @@
+rules:
+  # Обнаружение malicious preinstall/postinstall скриптов
+  - id: shai-hulud-preinstall-script
+    patterns:
+      - pattern-either:
+          - pattern: |
+              "preinstall": $SCRIPT
+          - pattern: |
+              "postinstall": $SCRIPT
+      - metavariable-regex:
+          metavariable: $SCRIPT
+          regex: '.*(setup_bun|bun_environment|SHA1HULUD|Sha1-Hulud).*'
+    message: |
+      Обнаружен потенциальный индикатор Shai-Hulud 2.0: подозрительный preinstall/postinstall скрипт.
+      Атака использует preinstall скрипты для выполнения малвари при установке пакета.
+    languages: [json]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-506: Embedded Malicious Code"
+      owasp: "A06:2021 - Vulnerable and Outdated Components"
+      references:
+        - https://securitylabs.datadoghq.com/articles/shai-hulud-2.0-npm-worm/
+        - https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack
+
+  # Обнаружение setup_bun.js файла
+  - id: shai-hulud-setup-bun-file
+    patterns:
+      - pattern-regex: 'setup_bun\.js'
+    message: |
+      Обнаружен файл setup_bun.js - прямой индикатор Shai-Hulud 2.0.
+      Этот файл используется для запуска вредоносной полезной нагрузки.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-506: Embedded Malicious Code"
+      threat: shai-hulud-2.0
+
+  # Обнаружение bun_environment.js файла
+  - id: shai-hulud-bun-environment-file
+    patterns:
+      - pattern-regex: 'bun_environment\.js'
+    message: |
+      Обнаружен файл bun_environment.js - прямой индикатор Shai-Hulud 2.0.
+      Этот файл содержит основную вредоносную полезную нагрузку.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение попыток кражи GitHub credentials
+  - id: shai-hulud-github-credential-theft
+    patterns:
+      - pattern-either:
+          - pattern: fs.readFileSync($PATH, ...)
+          - pattern: fs.readFile($PATH, ...)
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: '.*\.git(config|credentials).*'
+    message: |
+      Обнаружено чтение Git credentials файлов - возможный индикатор Shai-Hulud 2.0.
+      Малварь крадёт GitHub токены и credentials из локальной файловой системы.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение попыток кражи NPM credentials
+  - id: shai-hulud-npm-credential-theft
+    patterns:
+      - pattern-either:
+          - pattern: fs.readFileSync($PATH, ...)
+          - pattern: fs.readFile($PATH, ...)
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: '.*\.npmrc.*'
+    message: |
+      Обнаружено чтение .npmrc файла - возможный индикатор Shai-Hulud 2.0.
+      Малварь крадёт NPM токены для распространения через npm registry.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение AWS credentials theft
+  - id: shai-hulud-aws-credential-theft
+    patterns:
+      - pattern-either:
+          - pattern: fs.readFileSync($PATH, ...)
+          - pattern: fs.readFile($PATH, ...)
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: '.*\.aws/(credentials|config).*'
+    message: |
+      Обнаружено чтение AWS credentials - возможный индикатор Shai-Hulud 2.0.
+      Малварь крадёт облачные credentials из локальных конфигурационных файлов.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение GCP credentials theft
+  - id: shai-hulud-gcp-credential-theft
+    patterns:
+      - pattern-either:
+          - pattern: fs.readFileSync($PATH, ...)
+          - pattern: fs.readFile($PATH, ...)
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: '.*\.config/gcloud/.*'
+    message: |
+      Обнаружено чтение GCP credentials - возможный индикатор Shai-Hulud 2.0.
+      Малварь крадёт Google Cloud credentials из конфигурационных файлов.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение использования TruffleHog для поиска секретов
+  - id: shai-hulud-trufflehog-usage
+    patterns:
+      - pattern-either:
+          - pattern: spawn('trufflehog', ...)
+          - pattern: exec('trufflehog', ...)
+          - pattern: execSync('trufflehog', ...)
+      - pattern-regex: '.*trufflehog.*'
+    message: |
+      Обнаружено использование TruffleHog для сканирования секретов - индикатор Shai-Hulud 2.0.
+      Малварь использует TruffleHog для автоматизированного поиска credentials.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение эксфильтрации через GitHub API
+  - id: shai-hulud-github-exfiltration
+    patterns:
+      - pattern-either:
+          - pattern: fetch('https://api.github.com/...', $DATA)
+          - pattern: axios.post('https://api.github.com/...', $DATA)
+      - metavariable-regex:
+          metavariable: $DATA
+          regex: '.*(secret|credential|token|key).*'
+    message: |
+      Обнаружена попытка эксфильтрации через GitHub API - возможный индикатор Shai-Hulud 2.0.
+      Малварь создаёт публичные репозитории с украденными credentials.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-200: Exposure of Sensitive Information"
+
+  # Обнаружение создания GitHub репозитория с характерным описанием
+  - id: shai-hulud-github-repo-creation
+    patterns:
+      - pattern-regex: 'Sha1-Hulud:\s*The\s*(Second|Continued)\s*Coming'
+    message: |
+      Обнаружено создание репозитория с описанием "Sha1-Hulud: The Second Coming" - прямой индикатор атаки.
+      Это характерная подпись Shai-Hulud 2.0 для эксфильтрации данных.
+    languages: [json, javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение создания GitHub Actions self-hosted runner
+  - id: shai-hulud-github-runner-creation
+    patterns:
+      - pattern-either:
+          - pattern-regex: 'SHA1HULUD'
+          - pattern: |
+              name: "SHA1HULUD"
+    message: |
+      Обнаружена попытка создания self-hosted runner с именем SHA1HULUD.
+      Малварь регистрирует машину как GitHub runner для удалённого выполнения команд.
+    languages: [yaml, javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение подозрительного workflow файла discussion.yaml
+  - id: shai-hulud-malicious-workflow
+    patterns:
+      - pattern-regex: '\.github/workflows/discussion\.yaml'
+    message: |
+      Обнаружен подозрительный workflow файл discussion.yaml - индикатор Shai-Hulud 2.0.
+      Малварь создаёт workflow с уязвимостью для удалённого выполнения команд.
+    languages: [yaml]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение вызовов Instance Metadata Service
+  - id: shai-hulud-metadata-service-access
+    patterns:
+      - pattern-either:
+          - pattern: fetch('http://169.254.169.254/...', ...)
+          - pattern: fetch('http://metadata.google.internal/...', ...)
+          - pattern: axios.get('http://169.254.169.254/...', ...)
+          - pattern: axios.get('http://metadata.google.internal/...', ...)
+    message: |
+      Обнаружен доступ к Instance Metadata Service - индикатор Shai-Hulud 2.0.
+      Малварь крадёт временные облачные credentials из метадата сервиса.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение попыток доступа к AWS Secrets Manager
+  - id: shai-hulud-aws-secrets-access
+    patterns:
+      - pattern-either:
+          - pattern: new AWS.SecretsManager(...)
+          - pattern: SecretsManagerClient(...)
+    message: |
+      Обнаружен доступ к AWS Secrets Manager - возможный индикатор Shai-Hulud 2.0.
+      Малварь пытается получить секреты из облачных хранилищ.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение попыток удаления домашней директории (destructive behavior)
+  - id: shai-hulud-home-directory-destruction
+    patterns:
+      - pattern-either:
+          - pattern: fs.rmSync($HOME, ...)
+          - pattern: fs.rmdirSync($HOME, ...)
+          - pattern: execSync('rm -rf $HOME', ...)
+      - metavariable-regex:
+          metavariable: $HOME
+          regex: '.*(HOME|home|~).*'
+    message: |
+      КРИТИЧЕСКОЕ: Обнаружена попытка удаления домашней директории!
+      Shai-Hulud 2.0 имеет деструктивную функцию, которая удаляет все файлы пользователя.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-506: Embedded Malicious Code"
+      threat: shai-hulud-2.0
+
+  # Обнаружение base64 encoded data (double encoding pattern)
+  - id: shai-hulud-double-base64-encoding
+    patterns:
+      - pattern: |
+          Buffer.from(Buffer.from($DATA, 'base64').toString(), 'base64')
+    message: |
+      Обнаружено двойное base64 кодирование - техника используемая Shai-Hulud 2.0.
+      Малварь использует двойное кодирование для обхода сканеров секретов.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение установки Bun runtime
+  - id: shai-hulud-bun-runtime-installation
+    patterns:
+      - pattern-either:
+          - pattern: execSync('curl https://bun.sh/install | bash', ...)
+          - pattern: exec('curl https://bun.sh/install | bash', ...)
+          - pattern-regex: '.*bun\.sh/install.*'
+    message: |
+      Обнаружена автоматическая установка Bun runtime - индикатор Shai-Hulud 2.0.
+      Малварь устанавливает Bun для обхода Node.js мониторинга.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение автоматического npm publish
+  - id: shai-hulud-npm-autopublish
+    patterns:
+      - pattern-either:
+          - pattern: execSync('npm publish', ...)
+          - pattern: exec('npm publish', ...)
+      - pattern-inside: |
+          for (...) {
+            ...
+          }
+    message: |
+      Обнаружена автоматическая публикация npm пакетов в цикле - индикатор Shai-Hulud 2.0.
+      Малварь автоматически публикует заражённые версии пакетов для распространения.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение чтения всех переменных окружения
+  - id: shai-hulud-environment-scraping
+    patterns:
+      - pattern-either:
+          - pattern: JSON.stringify(process.env)
+          - pattern: Object.keys(process.env)
+          - pattern: Object.entries(process.env)
+    message: |
+      Обнаружено массовое извлечение переменных окружения - возможный индикатор Shai-Hulud 2.0.
+      Малварь собирает все переменные окружения для поиска секретов.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-200: Exposure of Sensitive Information"
+
+  # Обнаружение специфичного workflow pattern с injection уязвимостью
+  - id: shai-hulud-discussion-workflow-injection
+    patterns:
+      - pattern: |
+          on:
+            discussion:
+      - pattern-inside: |
+          runs-on: self-hosted
+      - pattern: ${{ github.event.discussion.body }}
+    message: |
+      КРИТИЧЕСКОЕ: Обнаружен workflow с уязвимостью injection через github.event.discussion.body!
+      Это характерный паттерн Shai-Hulud 2.0 для удалённого выполнения команд на self-hosted runners.
+    languages: [yaml]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-94: Improper Control of Generation of Code ('Code Injection')"
+      threat: shai-hulud-2.0
+
+  # Обнаружение formatter workflow для эксфильтрации секретов
+  - id: shai-hulud-formatter-workflow
+    patterns:
+      - pattern-regex: 'formatter_[0-9]+\.yml'
+    message: |
+      Обнаружен подозрительный formatter workflow - индикатор Shai-Hulud 2.0.
+      Малварь создаёт workflow для эксфильтрации GitHub secrets через artifacts.
+    languages: [yaml]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение эксфильтрации через GitHub Actions artifacts
+  - id: shai-hulud-secrets-artifact-upload
+    patterns:
+      - pattern-regex: '(secrets|credentials|cloud|environment|truffle).*\.(json|txt)'
+    message: |
+      Обнаружена попытка загрузки подозрительного artifact - возможный индикатор Shai-Hulud 2.0.
+      Малварь использует artifacts для эксфильтрации секретов (actionsSecrets.json).
+    languages: [yaml, javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-200: Exposure of Sensitive Information"
+
+  # Обнаружение проверок CI окружения
+  - id: shai-hulud-ci-environment-detection
+    patterns:
+      - pattern-inside: |
+          if ($CONDITIONAL) { ... }
+      - pattern-either:
+          - pattern: process.env.BUILDKITE
+          - pattern: process.env.PROJECT_ID
+          - pattern: process.env.GITHUB_ACTIONS
+          - pattern: process.env.CODEBUILD_BUILD_NUMBER
+          - pattern: process.env.CIRCLE_SHA1
+          - pattern: process.env.CI
+    message: |
+      Обнаружено детектирование CI окружения - паттерн Shai-Hulud 2.0.
+      Малварь различает CI и dev машины для синхронного/асинхронного выполнения.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение Docker privilege escalation
+  - id: shai-hulud-docker-privilege-escalation
+    patterns:
+      - pattern-either:
+          - pattern: execSync($CMD, ...)
+          - pattern: exec($CMD, ...)
+      - metavariable-regex:
+          metavariable: $CMD
+          regex: '.*docker run --privileged.*-v /:/.*'
+    message: |
+      КРИТИЧЕСКОЕ: Обнаружена попытка Docker privilege escalation!
+      Shai-Hulud 2.0 монтирует корневую FS для получения root доступа.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-250: Execution with Unnecessary Privileges"
+      threat: shai-hulud-2.0
+
+  # Обнаружение Azure credentials theft
+  - id: shai-hulud-azure-credential-theft
+    patterns:
+      - pattern-either:
+          - pattern: fs.readFileSync($PATH, ...)
+          - pattern: fs.readFile($PATH, ...)
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: '.*\.azure.*'
+    message: |
+      Обнаружено чтение Azure credentials - возможный индикатор Shai-Hulud 2.0.
+      Малварь крадёт Azure облачные credentials из конфигурационных файлов.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение Azure Key Vault access
+  - id: shai-hulud-azure-keyvault-access
+    patterns:
+      - pattern-either:
+          - pattern: new KeyVaultClient(...)
+          - pattern: SecretClient(...)
+          - pattern: require('@azure/keyvault-secrets')
+          - pattern: import $X from '@azure/keyvault-secrets'
+    message: |
+      Обнаружен доступ к Azure Key Vault - возможный индикатор Shai-Hulud 2.0.
+      Малварь пытается получить секреты из Azure Key Vault.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение Google Secret Manager access
+  - id: shai-hulud-gcp-secret-manager-access
+    patterns:
+      - pattern-either:
+          - pattern: new SecretManagerServiceClient(...)
+          - pattern: require('@google-cloud/secret-manager')
+          - pattern: import $X from '@google-cloud/secret-manager'
+    message: |
+      Обнаружен доступ к Google Secret Manager - возможный индикатор Shai-Hulud 2.0.
+      Малварь пытается получить секреты из Google Secret Manager.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение AWS SDK credential harvesting
+  - id: shai-hulud-aws-sdk-credential-harvest
+    patterns:
+      - pattern-either:
+          - pattern: new AWS.Credentials(...)
+          - pattern: AWS.config.credentials
+          - pattern: fromEnv()
+          - pattern: fromIni()
+    message: |
+      Обнаружено использование AWS SDK для получения credentials - возможный индикатор Shai-Hulud 2.0.
+      Малварь использует официальные SDK для работы независимо от host tools.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
+
+  # Обнаружение регистрации self-hosted runner через GitHub API
+  - id: shai-hulud-runner-registration
+    patterns:
+      - pattern-either:
+          - pattern: fetch('https://api.github.com/.../actions/runners/registration-token', ...)
+          - pattern: axios.post('https://api.github.com/.../actions/runners/registration-token', ...)
+    message: |
+      Обнаружена попытка регистрации GitHub Actions runner через API - индикатор Shai-Hulud 2.0.
+      Малварь регистрирует заражённую машину как self-hosted runner.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение suspicious file writes (IOC files)
+  - id: shai-hulud-ioc-files
+    patterns:
+      - pattern-either:
+          - pattern: fs.writeFileSync($PATH, ...)
+          - pattern: fs.writeFile($PATH, ...)
+      - metavariable-regex:
+          metavariable: $PATH
+          regex: '.*(cloud\.json|contents\.json|environment\.json|truffleSecrets\.json|actionsSecrets\.json).*'
+    message: |
+      Обнаружена запись в IOC файл - прямой индикатор Shai-Hulud 2.0.
+      Малварь сохраняет украденные credentials в специальные JSON файлы для эксфильтрации.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение синхронного/асинхронного поведения based on CI detection
+  - id: shai-hulud-execution-timing-manipulation
+    patterns:
+      - pattern: |
+          if ($CI_CHECK) {
+            ...
+            $SYNC_EXEC
+            ...
+          } else {
+            ...
+            setTimeout(...)
+            ...
+          }
+      - metavariable-regex:
+          metavariable: $CI_CHECK
+          regex: '.*(GITHUB_ACTIONS|CI|BUILDKITE|CODEBUILD).*'
+    message: |
+      Обнаружена манипуляция временем выполнения based on CI detection - паттерн Shai-Hulud 2.0.
+      Малварь выполняет код синхронно в CI и асинхронно на dev машинах для избежания обнаружения.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение GitHub discussion creation для backdoor активации
+  - id: shai-hulud-discussion-backdoor-activation
+    patterns:
+      - pattern-either:
+          - pattern: fetch('https://api.github.com/.../discussions', $BODY)
+          - pattern: axios.post('https://api.github.com/.../discussions', $BODY)
+      - metavariable-regex:
+          metavariable: $BODY
+          regex: '.*(command|exec|run|payload).*'
+    message: |
+      Обнаружена попытка создания GitHub discussion - возможная активация backdoor Shai-Hulud 2.0.
+      Малварь использует discussions для отправки команд на заражённые self-hosted runners.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      threat: shai-hulud-2.0
+
+  # Обнаружение Datadog API credentials theft
+  - id: shai-hulud-datadog-credential-theft
+    patterns:
+      - pattern-either:
+          - pattern: process.env.DD_API_KEY
+          - pattern: process.env.DATADOG_API_KEY
+          - pattern: process.env.DD_APP_KEY
+    message: |
+      Обнаружено извлечение Datadog API credentials - индикатор Shai-Hulud 2.0.
+      Малварь крадёт Datadog credentials из переменных окружения.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-522: Insufficiently Protected Credentials"
